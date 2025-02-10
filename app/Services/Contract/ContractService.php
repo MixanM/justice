@@ -5,9 +5,13 @@ namespace App\Services\Contract;
 use App\DTO\Contract\ContractDTO;
 use App\Models\Api\Contract;
 use App\Models\User;
+use App\Services\Service;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 
-class ContractService
+class ContractService extends Service
 {
 
     /**
@@ -17,7 +21,7 @@ class ContractService
      */
     public function createContract(ContractDTO $data): Contract
     {
-        return Contract::create($data);
+        return Contract::create($data->toArray());
     }
 
     /**
@@ -74,17 +78,31 @@ class ContractService
         return Contract::where('city_id',  $cityIds)->get();
     }
 
+
     /**
      * @param int $userId
      *
-     * @return Collection
+     * @return Collection|JsonResponse
      */
-    public function getContractsByCityToUser(int $userId): Collection
+    public function getContractsByCityToUser(int $userId): Collection|JsonResponse
     {
-        $user = User::with('settings.cities')->findOrFail($userId);
-        $cityIds = $user->settings->cities->pluck('id')->toArray();
+        try {
+            $user = User::with('settings.cities')->findOrFail($userId);
 
-        return $this->getContractsByCity($cityIds);
+            if (!$user->settings || !$user->settings->cities || $user->settings->cities->isEmpty()) {
+                $this ->handleException('У пользователя нет привязанных городов, список задач не получить');
+            }
+
+            $cityIds = $user->settings->cities->pluck('id')->toArray();
+            return $this->getContractsByCity($cityIds);
+
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Пользователь не найден',
+                'data' => [],
+            ], 404);
+        }
     }
 
     /**

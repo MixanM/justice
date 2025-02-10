@@ -6,17 +6,12 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class CreateContractRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
     /**
-     * Get the validation rules that apply to the request.
-     *
      * @return array
      */
     public function rules(): array
@@ -28,7 +23,7 @@ class CreateContractRequest extends FormRequest
             'comment' => 'string|nullable|sometimes',
             'price' => 'integer|required',
             'city_id' => 'integer|required',
-            'end_date' => 'datetime|required',
+            'end_date' => 'date|required',
         ];
     }
 }

@@ -9,3 +9,4 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 Route::resource('/contracts', ContractController::class);
+Route::post('/contracts', [ContractController::class, 'store'])->name('storeContract');

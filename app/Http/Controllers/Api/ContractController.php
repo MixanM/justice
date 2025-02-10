@@ -27,7 +27,8 @@ class ContractController extends Controller
      */
     public function index(): JsonResponse|Response
     {
-        $userId = auth()->id();
+        // $userId = auth()->id();
+        $userId = 1;
         try {
 
             $contracts = $this->contractService->getContractsByCityToUser($userId);
@@ -54,6 +55,7 @@ class ContractController extends Controller
 
             $contractDto = CreateContractDTO::createFromRequest($request);
             $contract = $this->contractService->createContract($contractDto);
+
             return ContractResponse::make($contract);
 
         } catch (\Exception $exception) {
