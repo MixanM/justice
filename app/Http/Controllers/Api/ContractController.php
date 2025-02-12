@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\DTO\Contract\ContractDTO as CreateContractDTO;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Contract\CreateContractRequest;
+use App\Http\Requests\Contract\CreateContractRequest as UpdateContractRequest;
 use App\Http\Responses\Contract\ContractResponse;
 use App\Services\Contract\ContractService;
 use Illuminate\Http\JsonResponse;
@@ -21,7 +22,9 @@ class ContractController extends Controller
         $this->contractService = $contractService;
     }
 
-    /** Получить заявки для текущего юзера  по списку указанных им городов
+
+    /**
+     * Получить заявки для текущего юзера  по списку указанных им городов
      *
      * @return JsonResponse|Response
      */
@@ -52,7 +55,6 @@ class ContractController extends Controller
     public function store(CreateContractRequest $request): ContractResponse|JsonResponse|Response
     {
         try {
-
             $contractDto = CreateContractDTO::createFromRequest($request);
             $contract = $this->contractService->createContract($contractDto);
 
@@ -62,5 +64,26 @@ class ContractController extends Controller
             return $this->jsonException($exception);
 
         }
+    }
+
+    /**
+     * обновить задачу
+     *
+     * @param UpdateContractRequest $request
+     * @param int $contractId
+     *
+     * @return ContractResponse|Response
+     */
+    public function update(UpdateContractRequest $request, int $contractId): ContractResponse|Response
+    {
+        try {
+            $contractDto = CreateContractDTO::createFromRequest($request);
+            $updateContract = $this->contractService->updateContract($contractId, $contractDto);
+
+            return ContractResponse::make($updateContract);
+        } catch (\Exception $exception){
+            return $this->jsonException($exception);
+        }
+
     }
 }

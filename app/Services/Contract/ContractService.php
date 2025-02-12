@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 
 class ContractService extends Service
 {
@@ -21,7 +22,9 @@ class ContractService extends Service
      */
     public function createContract(ContractDTO $data): Contract
     {
-        return Contract::create($data->toArray());
+        $contract = Contract::create($data->toArray());
+        $this->clearContractsCache();
+        return $contract;
     }
 
     /**
@@ -29,7 +32,9 @@ class ContractService extends Service
      */
     public function getAllContracts(): Collection
     {
-        return Contract::all();
+        return Redis::remember('contracts.all', 60, function () {
+            return Contract::all();
+        });
     }
 
     /**
@@ -39,7 +44,9 @@ class ContractService extends Service
      */
     public function getContractById(int $id): ?Contract
     {
-        return Contract::find($id);
+        return Redis::remember("contracts.{$id}", 60, function () use ($id) {
+            return Contract::find($id);
+        });
     }
 
     /**
@@ -50,9 +57,10 @@ class ContractService extends Service
      */
     public function updateContract(int $id, ContractDTO $data): ?Contract
     {
-        $contract = Contract::find($id);
+        $contract = Contract::query()->findOrFail($id);
         if ($contract) {
-            $contract->update($data);
+            $contract->update($data->toArray());
+            Redis::put("contracts.{$id}", $contract, 60);
         }
         return $contract;
     }
@@ -65,7 +73,12 @@ class ContractService extends Service
     public function deleteContract(int $id): bool
     {
         $contract = Contract::find($id);
-        return $contract ? $contract->delete() : false;
+        if ($contract) {
+            $contract->delete();
+            $this->clearContractsRedis($id);
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -75,7 +88,10 @@ class ContractService extends Service
      */
     public function getContractsByCity(array  $cityIds): Collection
     {
-        return Contract::where('city_id',  $cityIds)->get();
+        $cacheKey = 'contracts.city.' . md5(serialize($cityIds));
+        return Redis::remember($cacheKey, 60, function () use ($cityIds) {
+            return Contract::whereIn('city_id', $cityIds)->get();
+        });
     }
 
 
@@ -90,11 +106,15 @@ class ContractService extends Service
             $user = User::with('settings.cities')->findOrFail($userId);
 
             if (!$user->settings || !$user->settings->cities || $user->settings->cities->isEmpty()) {
-                $this ->handleException('У пользователя нет привязанных городов, список задач не получить');
+                $this->handleException('У пользователя нет привязанных городов, список задач не получить');
             }
 
             $cityIds = $user->settings->cities->pluck('id')->toArray();
-            return $this->getContractsByCity($cityIds);
+            $cacheKey = 'contracts.user.' . $userId . '.cities.' . md5(serialize($cityIds));
+
+            return Redis::remember($cacheKey, 60, function () use ($cityIds) {
+                return $this->getContractsByCity($cityIds);
+            });
 
         } catch (ModelNotFoundException $e) {
             return response()->json([
@@ -127,7 +147,9 @@ class ContractService extends Service
      */
     public function getCustomerContracts(User $customer): Collection
     {
-        return $customer->contracts;
+        return Redis::remember("contracts.customer.{$customer->id}", 60, function () use ($customer) {
+            return $customer->contracts;
+        });
     }
 
     /**
@@ -137,6 +159,21 @@ class ContractService extends Service
      */
     public function getExecutorContracts(User $executor): Collection
     {
-        return Contract::where('executor_id', $executor->id)->get();
+        return Redis::remember("contracts.executor.{$executor->id}", 60, function () use ($executor) {
+            return Contract::where('executor_id', $executor->id)->get();
+        });
+    }
+
+    /**
+     * Очистка кэша контрактов
+     *
+     * @param int|null $id
+     */
+    private function clearContractsCache(int $id = null): void
+    {
+        if ($id) {
+            Redis::forget("contracts.{$id}");
+        }
+        Redis::forget('contracts.all');
     }
 }
